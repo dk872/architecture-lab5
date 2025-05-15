@@ -30,17 +30,12 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       # Збірка Docker образів
-      - name: Build Docker images
+      - name: Build Docker images and run Unit Tests
         run: |
-          docker compose -f docker-compose.yaml -f docker-compose.test.yaml build
-
-      # Запуск юніт-тестів
-      - name: Run Unit Tests
-        run: |
-          docker compose -f docker-compose.yaml -f docker-compose.test.yaml run test
+          docker-compose build
 
       # Запуск інтеграційних тестів
       - name: Run Integration Tests
         run: |
-          docker compose -f docker-compose.yaml -f docker-compose.test.yaml up --exit-code-from test
+          docker-compose -f docker-compose.yaml -f docker-compose.test.yaml up --exit-code-from test
         continue-on-error: false
