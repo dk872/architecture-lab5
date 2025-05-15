@@ -15,7 +15,7 @@ var client = http.Client{
 }
 
 func TestBalancer(t *testing.T) {
-if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
+    if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
         t.Skip("Integration test is not enabled")
     }
 
