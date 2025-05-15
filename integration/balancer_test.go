@@ -15,46 +15,38 @@ var client = http.Client{
 }
 
 func TestBalancer(t *testing.T) {
-    if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
+if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
         t.Skip("Integration test is not enabled")
     }
 
-    const tries = 5
+    const tries = 10
     url := fmt.Sprintf("%s/api/v1/some-data", baseAddress)
 
-    resp, err := client.Get(url)
-    if err != nil {
-        t.Fatalf("first request failed: %v", err)
-    }
+    serversSeen := make(map[string]bool)
 
-    t.Logf("response from [%s]", resp.Header.Get("lb-from"))
-    resp.Body.Close()
-
-    firstFrom := resp.Header.Get("lb-from")
-    if firstFrom == "" {
-        t.Fatalf("missing lb-from header on first request")
-    }
-
-    for i := 1; i < tries; i++ {
+    for i := 0; i < tries; i++ {
         resp, err := client.Get(url)
         if err != nil {
             t.Fatalf("request %d failed: %v", i, err)
         }
 
-        t.Logf("response %d from [%s]", i, resp.Header.Get("lb-from"))
+        serverID := resp.Header.Get("lb-from")
         resp.Body.Close()
 
-        from := resp.Header.Get("lb-from")
-        if from != firstFrom {
-            t.Errorf("request %d: expected lb-from=%q, got %q", i, firstFrom, from)
+        if serverID == "" {
+            t.Fatalf("request %d missing lb-from header", i)
         }
+
+        t.Logf("request %d served by %s", i, serverID)
+        serversSeen[serverID] = true
     }
 
-    t.Logf("All %d requests went to %s as expected for variant 1", tries, firstFrom)
+    if len(serversSeen) < 2 {
+        t.Errorf("expected requests to be distributed to at least 2 different servers, got %d", len(serversSeen))
+    } else {
+        t.Logf("requests distributed to %d different servers as expected", len(serversSeen))
+    }
 }
-
-
-
 
 func BenchmarkBalancer(b *testing.B) {
     if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
