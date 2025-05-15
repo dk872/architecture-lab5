@@ -12,14 +12,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      docker:
-        image: docker:20.10.7
-        options: --privileged
-        ports:
-          - 8080:8080
-          - 8090:8090
-
     steps:
       # Клонування репозиторію
       - name: Checkout code
