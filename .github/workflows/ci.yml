@@ -32,10 +32,10 @@ jobs:
       # Збірка Docker образів
       - name: Build Docker images and run Unit Tests
         run: |
-          docker-compose build
+          docker compose build
 
       # Запуск інтеграційних тестів
       - name: Run Integration Tests
         run: |
-          docker-compose -f docker-compose.yaml -f docker-compose.test.yaml up --exit-code-from test
+          docker compose -f docker-compose.yaml -f docker-compose.test.yaml up --exit-code-from test
         continue-on-error: false
