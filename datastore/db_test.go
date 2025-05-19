@@ -1,10 +1,14 @@
 package datastore
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
 var segSize int64 = 8192
+
 func TestDb(t *testing.T) {
 	tmp := t.TempDir()
 	db, err := Open(tmp, segSize)
@@ -38,7 +42,7 @@ func TestDb(t *testing.T) {
 		}
 	})
 
-	t.Run("not exists", func (t *testing.T) {
+	t.Run("not exists", func(t *testing.T) {
 		if size, err := db.Size(); err == nil && size == 0 {
 			t.Fatal("dababase wasnt expected to be empty")
 		} else if err != nil {
@@ -147,4 +151,50 @@ func TestDb(t *testing.T) {
 			t.Errorf("expected %s, got %s", val1, val2)
 		}
 	})
+}
+
+func TestSegmentMerge(t *testing.T) {
+	tempDir := t.TempDir()
+	db, err := Open(tempDir, 100)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	var entries []struct {
+		key, value string
+	}
+	for i := 1; i <= 9; i++ {
+		key := fmt.Sprintf("key%d", i)
+		value := fmt.Sprintf("value%d", i)
+		entries = append(entries, struct {
+			key, value string
+		}{key: key, value: value})
+	}
+
+	for _, entry := range entries {
+		err := db.Put(entry.key, entry.value)
+		if err != nil {
+			t.Fatalf("Failed to insert record (%s, %s): %v", entry.key, entry.value, err)
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+
+	for _, entry := range entries {
+		result, err := db.Get(entry.key)
+		if err != nil {
+			t.Errorf("Failed to get value for key %s: %v", entry.key, err)
+		} else if result != entry.value {
+			t.Errorf("Expected value %s for key %s, but got %s", entry.value, entry.key, result)
+		}
+	}
+
+	db.indexMutex.RLock()
+	segmentsAfterMerge := len(db.segments)
+	db.indexMutex.RUnlock()
+
+	if segmentsAfterMerge != 2 {
+		t.Errorf("Expected 2 segments after merge, but got %d", segmentsAfterMerge)
+	}
 }
