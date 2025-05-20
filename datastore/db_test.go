@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 var segSize int64 = 8192
@@ -184,12 +183,7 @@ func TestSegmentMerge(t *testing.T) {
 		}
 	}
 
-	select {
-	case <-time.After(3 * time.Second):
-		t.Error("Merge did not complete in time")
-	default:
-		db.mergeWg.Wait()
-	}
+	db.mergeWg.Wait()
 
 	for _, entry := range entries {
 		result, err := db.Get(entry.key)
@@ -243,12 +237,7 @@ func TestDuplicateHandlingDuringMerge(t *testing.T) {
 		}
 	}
 
-	select {
-	case <-time.After(3 * time.Second):
-		t.Error("Merge did not complete in time")
-	default:
-		db.mergeWg.Wait()
-	}
+	db.mergeWg.Wait()
 
 	expected := map[string]string{
 		"key1": "value1",

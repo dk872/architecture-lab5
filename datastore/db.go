@@ -35,6 +35,8 @@ type Db struct {
 	segmentNumber int
 	segments      []*FileSegment
 	indexMutex    sync.RWMutex
+	segmentsMutex sync.RWMutex
+	mergeMutex    sync.RWMutex
 
 	writeCh chan writeRequest
 	stopCh  chan struct{}
@@ -92,10 +94,12 @@ func (db *Db) writer() {
 				continue
 			}
 
+			db.segmentsMutex.RLock()
 			currentSegment := db.segments[len(db.segments)-1]
 			currentSegment.mutex.Lock()
 			currentSegment.index[req.entry.key] = db.outOffset
 			currentSegment.mutex.Unlock()
+			db.segmentsMutex.RUnlock()
 
 			db.outOffset += int64(n)
 			req.doneCh <- nil
@@ -162,6 +166,14 @@ func (db *Db) mergeSegments() {
 	db.mergeWg.Add(1)
 	go func() {
 		defer db.mergeWg.Done()
+
+		db.segmentsMutex.RLock()
+		segmentsToMerge := make([]*FileSegment, len(db.segments))
+		copy(segmentsToMerge, db.segments)
+		db.segmentsMutex.RUnlock()
+
+		db.mergeMutex.Lock()
+		defer db.mergeMutex.Unlock()
 
 		newOutFile := fmt.Sprintf("%s%d", outFileName, db.segmentNumber)
 		newPath := filepath.Join(db.dir, newOutFile)
@@ -282,6 +294,9 @@ func (db *Db) Get(key string) (string, error) {
 }
 
 func (db *Db) Put(key, value string) error {
+	db.mergeMutex.RLock()
+	defer db.mergeMutex.RUnlock()
+
 	done := make(chan error)
 	db.writeCh <- writeRequest{
 		entry:  entry{key: key, value: value},
