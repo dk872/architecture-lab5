@@ -159,7 +159,12 @@ func TestSegmentMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Failed to close database: %v", err)
+		}
+	}()
 
 	var entries []struct {
 		key, value string
@@ -179,7 +184,12 @@ func TestSegmentMerge(t *testing.T) {
 		}
 	}
 
-	time.Sleep(2 * time.Second)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Merge did not complete in time")
+	default:
+		db.mergeWg.Wait()
+	}
 
 	for _, entry := range entries {
 		result, err := db.Get(entry.key)
@@ -196,5 +206,84 @@ func TestSegmentMerge(t *testing.T) {
 
 	if segmentsAfterMerge != 2 {
 		t.Errorf("Expected 2 segments after merge, but got %d", segmentsAfterMerge)
+	}
+}
+
+func TestDuplicateHandlingDuringMerge(t *testing.T) {
+	tempDir := t.TempDir()
+	db, err := Open(tempDir, 100)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Failed to close database: %v", err)
+		}
+	}()
+
+	entries := []struct {
+		key, value string
+	}{
+		{"key1", "value1"},
+		{"key2", "value2"},
+		{"key3", "value3.53"},
+		{"key2", "value2.1"},
+		{"key4", "value4"},
+		{"key5", "value5"},
+		{"key2", "value2.1"},
+		{"key6", "value6"},
+		{"key3", "value3"},
+	}
+
+	for _, entry := range entries {
+		err := db.Put(entry.key, entry.value)
+		if err != nil {
+			t.Fatalf("Failed to insert record (%s, %s): %v", entry.key, entry.value, err)
+		}
+	}
+
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Merge did not complete in time")
+	default:
+		db.mergeWg.Wait()
+	}
+
+	expected := map[string]string{
+		"key1": "value1",
+		"key2": "value2.1",
+		"key3": "value3",
+		"key4": "value4",
+		"key5": "value5",
+		"key6": "value6",
+	}
+
+	for key, expectedVal := range expected {
+		val, err := db.Get(key)
+		if err != nil {
+			t.Errorf("Failed to get value for key %s: %v", key, err)
+		} else if val != expectedVal {
+			t.Errorf("Expected value %s for key %s, but got %s", expectedVal, key, val)
+		}
+	}
+
+	db.indexMutex.RLock()
+	segmentsAfterMerge := len(db.segments)
+	db.indexMutex.RUnlock()
+
+	if segmentsAfterMerge != 2 {
+		t.Errorf("Expected 2 segments after merge, but got %d", segmentsAfterMerge)
+	}
+
+	seg := db.segments[0]
+	seg.mutex.RLock()
+	defer seg.mutex.RUnlock()
+
+	for key := range expected {
+		_, exists := seg.index[key]
+		if !exists {
+			t.Errorf("Key %s not found in merged segment index", key)
+		}
 	}
 }

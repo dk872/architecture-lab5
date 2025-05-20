@@ -38,6 +38,7 @@ type Db struct {
 
 	writeCh chan writeRequest
 	stopCh  chan struct{}
+	mergeWg sync.WaitGroup
 }
 
 func Open(dir string, segmentSize int64) (*Db, error) {
@@ -158,7 +159,10 @@ func (s *FileSegment) getValue(position int64) (string, error) {
 }
 
 func (db *Db) mergeSegments() {
+	db.mergeWg.Add(1)
 	go func() {
+		defer db.mergeWg.Done()
+
 		newOutFile := fmt.Sprintf("%s%d", outFileName, db.segmentNumber)
 		newPath := filepath.Join(db.dir, newOutFile)
 		db.segmentNumber++
@@ -175,46 +179,28 @@ func (db *Db) mergeSegments() {
 		}
 		defer f.Close()
 
-		lastInd := len(db.segments) - 2
+		seen := make(map[string]bool)
 
-		for i := 0; i <= lastInd; i++ {
+		for i := len(db.segments) - 1; i >= 0; i-- {
 			seg := db.segments[i]
-
 			seg.mutex.RLock()
-			for key, index := range seg.index {
-				if i < lastInd {
-					duplicateFlag := false
-					for _, s := range db.segments[i+1 : lastInd+1] {
-						s.mutex.RLock()
-						_, ok := s.index[key]
-						s.mutex.RUnlock()
-
-						if ok {
-							duplicateFlag = true
-							break
-						}
-					}
-
-					if duplicateFlag {
-						continue
-					}
+			for key, pos := range seg.index {
+				if seen[key] {
+					continue
 				}
 
-				value, err := seg.getValue(index)
+				val, err := seg.getValue(pos)
 				if err != nil {
 					continue
 				}
 
-				entry := entry{
-					key:   key,
-					value: value,
-				}
-
-				data := entry.Encode()
+				ent := entry{key: key, value: val}
+				data := ent.Encode()
 				n, err := f.Write(data)
 				if err == nil {
 					newSeg.index[key] = offset
 					offset += int64(n)
+					seen[key] = true
 				}
 			}
 			seg.mutex.RUnlock()
@@ -270,6 +256,7 @@ func (db *Db) recover() error {
 }
 
 func (db *Db) Close() error {
+	db.mergeWg.Wait()
 	close(db.stopCh)
 	if db.out != nil {
 		return db.out.Close()
