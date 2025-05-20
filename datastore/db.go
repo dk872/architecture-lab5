@@ -34,7 +34,6 @@ type Db struct {
 	segmentSize   int64
 	segmentNumber int
 	segments      []*FileSegment
-	indexMutex    sync.RWMutex
 	segmentsMutex sync.RWMutex
 	mergeMutex    sync.RWMutex
 
@@ -218,9 +217,9 @@ func (db *Db) mergeSegments() {
 			seg.mutex.RUnlock()
 		}
 
-		db.indexMutex.Lock()
+		db.segmentsMutex.Lock()
 		db.segments = []*FileSegment{newSeg, db.segments[len(db.segments)-1]}
-		db.indexMutex.Unlock()
+		db.segmentsMutex.Unlock()
 	}()
 }
 
@@ -277,8 +276,8 @@ func (db *Db) Close() error {
 }
 
 func (db *Db) Get(key string) (string, error) {
-	db.indexMutex.RLock()
-	defer db.indexMutex.RUnlock()
+	db.segmentsMutex.RLock()
+	defer db.segmentsMutex.RUnlock()
 
 	for i := range db.segments {
 		segment := db.segments[len(db.segments)-i-1]

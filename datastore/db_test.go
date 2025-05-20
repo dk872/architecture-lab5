@@ -194,9 +194,9 @@ func TestSegmentMerge(t *testing.T) {
 		}
 	}
 
-	db.indexMutex.RLock()
+	db.segmentsMutex.RLock()
 	segmentsAfterMerge := len(db.segments)
-	db.indexMutex.RUnlock()
+	db.segmentsMutex.RUnlock()
 
 	if segmentsAfterMerge != 2 {
 		t.Errorf("Expected 2 segments after merge, but got %d", segmentsAfterMerge)
@@ -257,9 +257,9 @@ func TestDuplicateHandlingDuringMerge(t *testing.T) {
 		}
 	}
 
-	db.indexMutex.RLock()
+	db.segmentsMutex.RLock()
 	segmentsAfterMerge := len(db.segments)
-	db.indexMutex.RUnlock()
+	db.segmentsMutex.RUnlock()
 
 	if segmentsAfterMerge != 2 {
 		t.Errorf("Expected 2 segments after merge, but got %d", segmentsAfterMerge)
