@@ -155,6 +155,9 @@ func (s *FileSegment) getValue(position int64) (string, error) {
 	var record entry
 	_, err = record.DecodeFromReader(reader)
 	if err != nil {
+		if errors.Is(err, ErrChecksumMismatch) {
+			return "", ErrNotFound
+		}
 		return "", err
 	}
 

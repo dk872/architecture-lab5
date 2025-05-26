@@ -9,6 +9,8 @@ import (
 	"io"
 )
 
+var ErrChecksumMismatch = errors.New("checksum mismatch")
+
 type entry struct {
 	key, value string
 	hash       [20]byte
@@ -77,7 +79,7 @@ func (e *entry) DecodeFromReader(in *bufio.Reader) (int, error) {
 
 	expectedHash := sha1.Sum([]byte(e.value))
 	if e.hash != expectedHash {
-		return n, fmt.Errorf("data integrity check failed: sha1 mismatch")
+		return n, ErrChecksumMismatch
 	}
 
 	return n, nil
