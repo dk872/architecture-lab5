@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dk872/architecture-lab4/httptools"
-	"github.com/dk872/architecture-lab4/signal"
+	"github.com/dk872/architecture-lab5/httptools"
+	"github.com/dk872/architecture-lab5/signal"
 )
 
 var (

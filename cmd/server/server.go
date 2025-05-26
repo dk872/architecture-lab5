@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dk872/architecture-lab4/httptools"
-	"github.com/dk872/architecture-lab4/signal"
+	"github.com/dk872/architecture-lab5/httptools"
+	"github.com/dk872/architecture-lab5/signal"
 )
 
 var port = flag.Int("port", 8080, "server port")
