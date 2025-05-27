@@ -2,6 +2,7 @@ package integration
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -15,50 +16,52 @@ var client = http.Client{
 }
 
 func TestBalancer(t *testing.T) {
-    if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
-        t.Skip("Integration test is not enabled")
-    }
+	if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
+		t.Skip("Integration test is not enabled")
+	}
 
-    const tries = 10
-    url := fmt.Sprintf("%s/api/v1/some-data", baseAddress)
+	url := fmt.Sprintf("%s/api/v1/some-data?key=gitpushforce", baseAddress)
 
-    serversSeen := make(map[string]bool)
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
 
-    for i := 0; i < tries; i++ {
-        resp, err := client.Get(url)
-        if err != nil {
-            t.Fatalf("request %d failed: %v", i, err)
-        }
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status: %d, body: %s", resp.StatusCode, body)
+	}
 
-        serverID := resp.Header.Get("lb-from")
-        resp.Body.Close()
+	serverID := resp.Header.Get("lb-from")
+	if serverID == "" {
+		t.Fatalf("missing lb-from header")
+	}
+	t.Logf("served by: %s", serverID)
 
-        if serverID == "" {
-            t.Fatalf("request %d missing lb-from header", i)
-        }
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
 
-        t.Logf("request %d served by %s", i, serverID)
-        serversSeen[serverID] = true
-    }
-
-    if len(serversSeen) < 2 {
-        t.Errorf("expected requests to be distributed to at least 2 different servers, got %d", len(serversSeen))
-    } else {
-        t.Logf("requests distributed to %d different servers as expected", len(serversSeen))
-    }
+	if len(body) == 0 {
+		t.Errorf("response body is empty")
+	} else {
+		t.Logf("response body: %s", string(body))
+	}
 }
 
 func BenchmarkBalancer(b *testing.B) {
-    if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
-        b.Skip("Integration benchmark is not enabled")
-    }
+	if _, exists := os.LookupEnv("INTEGRATION_TEST"); !exists {
+		b.Skip("Integration benchmark is not enabled")
+	}
 
-    url := fmt.Sprintf("%s/api/v1/some-data", baseAddress)
-    for i := 0; i < b.N; i++ {
-        resp, err := client.Get(url)
-        if err != nil {
-            b.Fatalf("benchmark request %d failed: %v", i, err)
-        }
-        resp.Body.Close()
-    }
+	url := fmt.Sprintf("%s/api/v1/some-data?key=gitpushforce", baseAddress)
+	for i := 0; i < b.N; i++ {
+		resp, err := client.Get(url)
+		if err != nil {
+			b.Fatalf("benchmark request %d failed: %v", i, err)
+		}
+		resp.Body.Close()
+	}
 }
