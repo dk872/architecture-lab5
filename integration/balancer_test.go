@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"encoding/json"
 )
 
 const baseAddress = "http://balancer:8090"
@@ -43,11 +44,22 @@ func TestBalancer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read body: %v", err)
 	}
+	t.Logf("response body: %s", string(body))
 
-	if len(body) == 0 {
-		t.Errorf("response body is empty")
-	} else {
-		t.Logf("response body: %s", string(body))
+	var result struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("invalid JSON response: %v", err)
+	}
+
+	if result.Key != "gitpushforce" {
+		t.Errorf("unexpected key: got %q, want %q", result.Key, "gitpushforce")
+	}
+	if result.Value == "" {
+		t.Error("value field is empty")
 	}
 }
 
