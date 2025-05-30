@@ -100,7 +100,7 @@ func main() {
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusNotFound {
-			http.NotFound(rw, r)
+			rw.WriteHeader(http.StatusNotFound)
 			return
 		} else if resp.StatusCode != http.StatusOK {
 			data, _ := io.ReadAll(resp.Body)
