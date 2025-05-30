@@ -29,11 +29,6 @@ func TestBalancer(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("unexpected status: %d, body: %s", resp.StatusCode, body)
-	}
-
 	serverID := resp.Header.Get("lb-from")
 	if serverID == "" {
 		t.Fatalf("missing lb-from header")
@@ -43,6 +38,14 @@ func TestBalancer(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("failed to read body: %v", err)
+	}
+	
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	if len(body) == 0 {
+		t.Fatalf("response body is empty")
 	}
 	t.Logf("response body: %s", string(body))
 
